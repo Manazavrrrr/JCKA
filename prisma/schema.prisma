@@ -1,0 +1,600 @@
+// SAQ QURYLYS — схема данных
+//
+// Принципы, заложенные в схему:
+//  1. Правовое основание — НЕ булев флаг. legalBasisStatus имеет три состояния,
+//     и фактор R1 начисляется только при CONFIRMED_ABSENT. Это прямое требование
+//     ТЗ: «отсутствие доступа к реестру или "нет данных" не считается его отсутствием».
+//  2. Источник истины для балла — таблица RiskFactor. Поля riskScore/riskZone
+//     на Project денормализованы ради быстрого списка и карты и всегда
+//     пересчитываются из факторов (см. src/core/scoring).
+//  3. Любое сведение несёт источник и время фиксации (требование раздела 4 ТЗ).
+//  4. Гипотеза ИИ (AiSuggestion) и подтверждённый факт (RiskFactor) — разные
+//     таблицы. Гипотеза никогда не влияет на балл, пока её не принял аналитик.
+//
+// SQLite не поддерживает enum на уровне БД, поэтому перечисления хранятся
+// строками, а их допустимые значения описаны и валидируются Zod-схемами
+// в src/core/domain/enums.ts. Там же лежат человекочитаемые подписи RU/KZ.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Застройщик. Все данные в seed — вымышленные (см. isDemo).
+model Developer {
+  id        String   @id @default(cuid())
+  name      String
+  nameKk    String?
+  /// БИН. В демо-данных намеренно невалидный префикс, чтобы исключить
+  /// совпадение с реальной компанией.
+  bin       String   @unique
+  phone     String?
+  isDemo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  projects       Project[]
+  registryChecks RegistryCheck[]
+}
+
+/// Объект долевого строительства (ЖК).
+model Project {
+  id        String  @id @default(cuid())
+  slug      String  @unique
+  name      String
+  nameKk    String?
+  address   String
+  addressKk String?
+  city      String  @default("Усть-Каменогорск")
+  lat       Float?
+  lng       Float?
+
+  developerId String
+  developer   Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  /// ProjectStage: PLANNING | FOUNDATION | FRAME | FACADE | FINISHING | COMMISSIONED
+  stage               String
+  plannedCompletionAt DateTime?
+  actualDelayDays     Int?
+
+  // --- Готовность: два независимых значения со своими источниками и датами.
+  // Фактор R5 требует, чтобы оба значения были заполнены и имели источник.
+  declaredReadinessPct    Int?
+  declaredReadinessSource String?
+  declaredReadinessAt     DateTime?
+  verifiedReadinessPct    Int?
+  verifiedReadinessSource String?
+  verifiedReadinessAt     DateTime?
+
+  // --- Правовое основание привлечения средств.
+  /// LegalBasisStatus: NOT_CHECKED | CONFIRMED_PRESENT | CONFIRMED_ABSENT
+  /// Только CONFIRMED_ABSENT даёт право начислить R1.
+  legalBasisStatus String @default("NOT_CHECKED")
+
+  /// LegalBasisType: UNKNOWN | GUARANTEE_OPERATOR | BANK_PARTICIPATION | MIO_PERMIT | OWN_FUNDS_AFTER_FRAME | NONE
+  /// Соответствует способам организации долевого участия по Закону РК
+  /// «О долевом участии в жилищном строительстве» (ст. 7, 8).
+  legalBasisType String @default("UNKNOWN")
+
+  legalBasisSource    String?
+  legalBasisCheckedAt DateTime?
+  legalBasisCheckedBy String?
+  legalBasisNote      String?
+
+  // --- Кэш расчёта. Пересчитывается из RiskFactor, напрямую не редактируется.
+  riskScore Int       @default(0)
+  /// RiskZone: GREEN | YELLOW | RED
+  riskZone  String    @default("GREEN")
+  scoredAt  DateTime?
+
+  isDemo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  publications   Publication[]
+  factors        RiskFactor[]
+  appeals        Appeal[]
+  signals        Signal[]
+  scoreSnapshots ScoreSnapshot[]
+  aiSuggestions  AiSuggestion[]
+  registryChecks RegistryCheck[]
+
+  @@index([riskZone])
+  @@index([developerId])
+}
+
+/// Рекламная публикация. Хранится локальная копия текста — исходник может исчезнуть.
+model Publication {
+  id        String   @id @default(cuid())
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  /// Platform: KRISHA_DEMO | OLX_DEMO | INSTAGRAM_DEMO | TELEGRAM_DEMO | FACEBOOK_DEMO | DEVELOPER_SITE | MANUAL_ENTRY
+  platform     String
+  accountName  String?
+  accountUrl   String?
+  /// Телефон из объявления. Используется для поиска связанных размещений.
+  contactPhone String?
+  url          String?
+
+  publishedAt DateTime?
+  /// Дата фиксации сведения в системе — требование раздела 4 ТЗ.
+  capturedAt  DateTime  @default(now())
+
+  /// Локальная копия текста объявления. Офсеты в Evidence считаются по этому полю.
+  rawText        String
+  screenshotPath String?
+
+  /// LinkStatus: UNLINKED | AI_SUGGESTED | CONFIRMED | REJECTED
+  linkStatus     String  @default("UNLINKED")
+  /// Уверенность автосопоставления ИИ, 0..1. Null — связано вручную.
+  linkConfidence Float?
+  linkedBy       String?
+  linkedAt       DateTime?
+
+  isDemo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  evidence      Evidence[]
+  aiSuggestions AiSuggestion[]
+  /// Элемент сбора, из которого заведена публикация. Пусто у внесённых вручную.
+  collectedItem CollectedItem?
+
+  @@index([projectId])
+  @@index([contactPhone])
+  @@index([linkStatus])
+}
+
+/// Зафиксированный фактор риска по объекту. Один объект — максимум одна строка на код.
+model RiskFactor {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// FactorCode: R1 | R2 | R3 | R4 | R5 | R6
+  code String
+
+  /// FactorStatus: CONFIRMED | NEEDS_CHECK | REJECTED | NOT_APPLICABLE
+  /// Баллы начисляет ТОЛЬКО CONFIRMED. NEEDS_CHECK даёт 0 баллов
+  /// и отдельно показывается аналитику как «Нужна проверка».
+  status String @default("NEEDS_CHECK")
+
+  /// FactorOrigin: MANUAL | AI_ACCEPTED | RULE
+  /// Показывает, что является фактом, проверенным человеком, а что пришло из ИИ.
+  origin String @default("MANUAL")
+
+  /// Обоснование решения аналитика.
+  rationale String?
+
+  confirmedBy String?
+  confirmedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  evidence Evidence[]
+
+  @@unique([projectId, code])
+  @@index([projectId])
+}
+
+/// Доказательство под фактором: фрагмент текста, документ, скриншот, запись реестра.
+model Evidence {
+  id String @id @default(cuid())
+
+  factorId String?
+  factor   RiskFactor? @relation(fields: [factorId], references: [id], onDelete: Cascade)
+
+  publicationId String?
+  publication   Publication? @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  /// EvidenceKind: TEXT_FRAGMENT | SCREENSHOT | DOCUMENT | REGISTRY_RECORD | APPEAL | FIELD_CHECK
+  kind String
+
+  /// Фрагмент-основание. Для TEXT_FRAGMENT офсеты указывают на Publication.rawText,
+  /// что позволяет подсветить ровно это место в ленте публикаций.
+  excerpt   String?
+  charStart Int?
+  charEnd   Int?
+
+  sourceLabel String?
+  sourceUrl   String?
+  capturedAt  DateTime @default(now())
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([factorId])
+  @@index([publicationId])
+}
+
+/// Коллективное обращение по объекту — основание для R4.
+model Appeal {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  registeredAt DateTime
+  signatories  Int
+  /// AppealStatus: VERIFIED | UNVERIFIED
+  /// R4 допустим только при VERIFIED («подтверждённое обращение»).
+  status       String
+  reference    String?
+  summary      String
+
+  isDemo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+}
+
+/// Гипотеза ИИ. Никогда не влияет на балл напрямую — требует решения аналитика.
+model AiSuggestion {
+  id String @id @default(cuid())
+
+  publicationId String?
+  publication   Publication? @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  projectId     String?
+  project       Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// SuggestionKind: PAYMENT_TERMS | PROJECT_MATCH | FACTOR_HYPOTHESIS | RISK_EXPLANATION
+  kind String
+
+  /// Код предлагаемого фактора, если kind = FACTOR_HYPOTHESIS.
+  factorCode String?
+
+  /// Структурированный результат разбора (JSON-строка, схема в src/core/ai/schemas.ts).
+  payloadJson String
+
+  /// Уверенность 0..1. Ниже порога LOW_CONFIDENCE гипотеза маркируется в UI.
+  confidence Float
+
+  evidenceExcerpt String?
+  charStart       Int?
+  charEnd         Int?
+
+  /// AiProviderId: rules | llm
+  provider String
+  model    String?
+
+  /// SuggestionStatus: PENDING | ACCEPTED | REJECTED
+  status     String    @default("PENDING")
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([publicationId])
+  @@index([projectId])
+  @@index([status])
+}
+
+/// Сигнальная карточка — результат работы аналитика по объекту.
+model Signal {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Снимок балла и зоны на момент формирования сигнала.
+  score       Int
+  zone        String
+  /// Снимок факторов с весами и доказательствами (JSON) — чтобы отчёт
+  /// оставался воспроизводимым даже после изменения данных объекта.
+  factorsJson String
+  summary     String?
+
+  /// SignalStatus: DRAFT | CONFIRMED | RETURNED
+  status String @default("DRAFT")
+
+  createdBy     String
+  createdAt     DateTime  @default(now())
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewComment String?
+
+  @@index([projectId])
+  @@index([status])
+}
+
+/// История изменения риска во времени — для графика динамики в карточке объекта.
+model ScoreSnapshot {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  score           Int
+  zone            String
+  /// JSON-массив кодов подтверждённых факторов на момент снимка.
+  factorCodesJson String
+  /// Причина пересчёта: что именно изменилось.
+  reason          String
+  createdAt       DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Слой сбора
+// ---------------------------------------------------------------------------
+//
+// Три таблицы отвечают на три вопроса: чем ловим (WatchTerm), когда и откуда
+// тянули (CollectRun), что именно поймали и почему приняли такое решение
+// (CollectedItem).
+//
+// Решение по элементу хранится готовой строкой, а не ссылками на термины.
+// Причина та же, по которой Signal хранит factorsJson: объяснение должно
+// оставаться верным и через полгода. Аналитик переименует слово-ловушку или
+// удалит её — а запись «поймано словом „рассрочка“ 14 октября» обязана
+// остаться ровно такой, какой была в момент решения.
+
+/// Слово-ловушка. Редактируется аналитиком в интерфейсе, а не в коде:
+/// состав признаков меняется быстрее, чем выходят сборки.
+model WatchTerm {
+  id String @id @default(cuid())
+
+  /// WatchTermCategory: SUBJECT | ACTOR | OFFER | CONSTRUCTION | EXCLUDE
+  /// Решение об отборе принимается по набору сработавших категорий,
+  /// а не по числу слов: «квартира» сама по себе не значит ничего.
+  category String
+
+  /// WatchTermLanguage: RU | KK. Поиск идёт по всем терминам всегда —
+  /// язык хранится, чтобы было видно, покрыт ли казахский вообще.
+  language String @default("RU")
+
+  /// Термин так, как его написал аналитик. Звёздочка заменяет окончание.
+  text String
+
+  /// Выключенный термин хранится, но в прогоне не участвует.
+  active Boolean @default(true)
+
+  noteRu String?
+  noteKk String?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([category, text])
+  @@index([active])
+}
+
+/// Один проход коннектора по источнику.
+model CollectRun {
+  id String @id @default(cuid())
+
+  /// Идентификатор источника из каталога src/core/collect/sources.ts.
+  sourceId String
+  /// Что именно читали: имя канала, адрес страницы.
+  target   String?
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  /// CollectRunStatus: OK | FAILED | SKIPPED
+  ///
+  /// SKIPPED — прогон не состоялся по решению самой программы: кончился
+  /// дневной предел расхода, не включено ни одного слова поиска, нет ключа.
+  /// Отдельное значение от FAILED, потому что это разные события: сбой лечат
+  /// повторной попыткой, отказ по пределу — ожиданием или настройкой. Будь
+  /// это одно значение, автоматический обход, упёршийся в деньги, выглядел
+  /// бы в истории как сломанный источник.
+  status String  @default("OK")
+  error  String?
+
+  /// Снимок настройки отбора на момент прогона: порог числа категорий.
+  minCategories Int @default(2)
+
+  total   Int @default(0)
+  kept    Int @default(0)
+  skipped Int @default(0)
+
+  /// Сколько элементов поймал каждый термин (JSON). Нужно, чтобы в настройках
+  /// было видно слова, которые давно не ловят ничего.
+  statsJson String?
+
+  /// Чем этот прогон отличается от обычного живого сбора. Заполняется, когда
+  /// данные взяты не из источника: например, у платного источника нет ключа и
+  /// прогон выполнен на сохранённом образце. Пустое поле значит «источник
+  /// читали напрямую» — то есть отсутствие пометки здесь это утверждение, а не
+  /// умолчание, и выдать демонстрацию за живой сбор нельзя.
+  note String?
+
+  /// Во что обошёлся прогон, доллары. У бесплатных источников ноль.
+  ///
+  /// Хранится, а не пересчитывается по числу результатов, по двум причинам.
+  /// Первая: цена актора может измениться, и тогда пересчёт задним числом
+  /// исказил бы расход прошлых суток — а по нему считается дневной предел.
+  /// Вторая: прогон, уменьшенный по остатку бюджета, стоит не столько,
+  /// сколько просили, и эту разницу надо видеть в истории.
+  costUsd Float @default(0)
+
+  /// Кто запустил прогон. Отдельное значение для планировщика, чтобы в
+  /// истории было видно, где нажимал человек, а где обход шёл сам.
+  startedBy String?
+
+  items CollectedItem[]
+
+  @@index([sourceId, startedAt])
+  @@index([startedAt])
+}
+
+/// Поисковое слово, по которому объявления ищутся без перечня аккаунтов.
+///
+/// Отличается от WatchTerm по назначению, и путать их не стоит. WatchTerm —
+/// это чем отбирают уже прочитанное: слово-ловушка применяется к тексту
+/// публикации после того, как публикация получена, и ничего не стоит.
+/// SearchQuery — это чем ищут то, что ещё не прочитано: тег уходит в адрес
+/// запроса к платному сборщику, и каждое включённое слово умножает счёт.
+/// Поэтому у них разные потолки и разная цена ошибки: лишнее слово-ловушка
+/// портит отбор, лишнее поисковое слово тратит деньги.
+model SearchQuery {
+  id String @id @default(cuid())
+
+  /// Идентификатор источника из каталога src/core/collect/sources.ts.
+  sourceId String @default("instagram-apify")
+
+  /// Тег без решётки, уже приведённый: нижний регистр, без пробелов.
+  tag String
+
+  /// Выключенное слово хранится, но в обходе не участвует и денег не стоит.
+  active Boolean @default(true)
+
+  noteRu String?
+  noteKk String?
+
+  /// Когда по этому слову последний раз ходили и что нашли. Нужно, чтобы
+  /// было видно слова, которые давно не приносят нового: такое слово стоит
+  /// денег на каждом обходе и не окупается.
+  lastWalkedAt DateTime?
+  lastFound    Int       @default(0)
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sourceId, tag])
+  @@index([active])
+}
+
+/// Элемент потока вместе с решением по нему.
+/// Отброшенное хранится наравне с принятым: иначе ошибку фильтра
+/// невозможно заметить — отброшенное объявление нигде не всплывёт.
+model CollectedItem {
+  id    String     @id @default(cuid())
+  runId String
+  run   CollectRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  sourceId   String
+  /// Идентификатор в источнике: номер поста, идентификатор объявления.
+  externalId String
+
+  url         String?
+  author      String?
+  publishedAt DateTime?
+  rawText     String
+
+  /// Отпечаток свёрнутого текста — поиск повторов между прогонами.
+  fingerprint String
+
+  /// CollectVerdict: KEPT | SKIPPED
+  verdict String
+  /// CollectReason: MATCHED | NO_MATCH | EXCLUDED | TOO_NARROW | DUPLICATE
+  reason  String
+
+  /// Готовая фраза для интерфейса: решение словами самого объявления.
+  explanationRu String
+  explanationKk String
+
+  /// Сработавшие слова с категориями, позициями и цитатами (JSON).
+  hitsJson String
+
+  /// Публикация, заведённая из элемента. Пусто, пока аналитик не принял его
+  /// в работу, и всегда пусто у отброшенных.
+  publicationId String?      @unique
+  publication   Publication? @relation(fields: [publicationId], references: [id], onDelete: SetNull)
+
+  /// Аналитик убрал элемент из очереди руками. Отдельные поля, а не правка
+  /// verdict: решение машины и решение человека должны быть видны оба —
+  /// разошлись они или совпали, видно только когда записаны порознь.
+  dismissedAt      DateTime?
+  dismissedBy      String?
+  dismissedComment String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([runId, externalId])
+  @@index([fingerprint])
+  @@index([verdict])
+}
+
+/// Одна проверка в государственном реестре.
+///
+/// Запись хранит не вывод, а сам ход проверки: по какому источнику спросили,
+/// каким адресом, что ответили и когда. Проверка, которую нельзя повторить
+/// по сохранённому адресу, для надзорного органа не доказательство, а для
+/// застройщика — не повод что-либо объяснять.
+///
+/// Баллы эта таблица не трогает. Ответ реестра может дать аналитику
+/// основание снять фактор R1 или заполнить legalBasisStatus на Project,
+/// но делает это человек своим действием, и оно попадает в AuditLog.
+/// Начислить R1 по ответу «записи нет» или по недоступности службы нельзя:
+/// это прямо запрещено оговоркой к фактору (см. src/core/scoring/model.ts).
+model RegistryCheck {
+  id String @id @default(cuid())
+
+  /// Идентификатор источника из каталога src/core/registry/sources.ts.
+  sourceId String
+
+  /// Кого проверяли. Проверка идёт по застройщику, а привязка к ЖК
+  /// появляется, если аналитик запустил её с карточки объекта.
+  developerId String?
+  developer   Developer? @relation(fields: [developerId], references: [id], onDelete: SetNull)
+  projectId   String?
+  project     Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  /// Запрошенный БИН в чистом виде: двенадцать цифр без разделителей.
+  bin String?
+
+  /// Адрес запроса дословно — его показывают аналитику и вписывают в протокол.
+  requestUrl String?
+  /// Условия отбора в том виде, в каком они ушли в службу (JSON).
+  requestJson String?
+
+  /// RegistryAnswer: FOUND | NOT_FOUND | UNAVAILABLE
+  answer String
+  /// Ответ службы как есть. Хранится целиком: пересказ ответа реестра
+  /// своими словами — это уже не ответ реестра.
+  responseJson String?
+  /// Текст отказа, если ответ не получен или не разобран.
+  error String?
+
+  /// Строки сверки: поле, подпись, значение из карточки, значение из
+  /// реестра, вердикт (JSON).
+  comparisonJson String?
+  /// Сколько строк разошлись прямо. Денормализовано ради списка.
+  disagreements  Int     @default(0)
+
+  /// R1Bearing: WITHDRAWS_R1 | NO_BEARING. Значения «подтверждает» нет
+  /// и не будет — см. src/core/registry/check.ts.
+  bearingOnR1 String @default("NO_BEARING")
+
+  /// Проверка проведена руками: аналитик открыл сайт реестра и принёс
+  /// выписку. Для источников с режимом WEB_ONLY это единственный путь.
+  manual Boolean @default(false)
+  /// Чем подтверждена ручная проверка: исходящий номер ответа органа,
+  /// имя приложенного файла, адрес страницы со снимком.
+  attachment String?
+
+  note      String?
+  checkedAt DateTime @default(now())
+  checkedBy String?
+
+  isDemo Boolean @default(true)
+
+  @@index([developerId, checkedAt])
+  @@index([projectId, checkedAt])
+  @@index([sourceId, checkedAt])
+}
+
+/// Журнал действий. Требование ТЗ «Контроль решений»: фиксируются
+/// статус, автор, дата и время каждого действия аналитика.
+model AuditLog {
+  id String @id @default(cuid())
+
+  entityType String
+  entityId   String
+  /// Например: FACTOR_CONFIRMED, FACTOR_REJECTED, SIGNAL_CONFIRMED,
+  /// SIGNAL_RETURNED, PUBLICATION_LINKED, AI_SUGGESTION_ACCEPTED.
+  action     String
+  actor      String
+
+  beforeJson String?
+  afterJson  String?
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

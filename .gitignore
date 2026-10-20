@@ -1,0 +1,34 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Переменные окружения и секреты — в репозиторий не попадают.
+.env
+.env.local
+.env.*.local
+
+# Локальная база SQLite.
+*.db
+*.db-journal
+prisma/*.db
+prisma/*.db-journal
+
+# Сгенерированный клиент Prisma.
+/src/generated/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+*.tsbuildinfo
+next-env.d.ts
+coverage/

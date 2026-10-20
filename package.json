@@ -1,0 +1,43 @@
+{
+  "name": "saq-qurylys",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SAQ QURYLYS — интеллектуальный мониторинг рисков в долевом жилищном строительстве",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:dataset": "tsx scripts/check-dataset.ts",
+    "check:arch": "tsx scripts/check-architecture.ts",
+    "analyze": "tsx scripts/analyze-ad.ts",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma db push --force-reset && npm run db:seed",
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate",
+    "verify": "npm run check:arch && npm run check:dataset && npm run typecheck && npm run test"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "prisma": "^6.2.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

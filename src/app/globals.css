@@ -1,0 +1,915 @@
+/*
+ * Оформление.
+ *
+ * Обычный CSS без препроцессора и без утилитарного фреймворка. Причина
+ * практическая: это инструмент государственного служащего, в нём около
+ * двадцати экранов и ни одного нестандартного элемента. Фреймворк дал бы
+ * здесь лишний шаг сборки и ничего взамен.
+ *
+ * Три вещи, за которыми в этом файле стоит следить особо.
+ *
+ * 1. Цвета зон риска (зелёная, жёлтая, красная) — часть предметной
+ *    области, а не оформления. Они заданы один раз переменными и ниже
+ *    только используются, чтобы красный в списке, в карточке и в печати
+ *    был одним и тем же красным.
+ *
+ * 2. Подсветка цитат ИИ и доказательств аналитика намеренно разная:
+ *    пунктирная рамка без заливки против плотной заливки. Гипотеза —
+ *    вопрос, доказательство — утверждение, за которым стоит человек.
+ *    Если бы они выглядели одинаково, интерфейс превратил бы
+ *    предположение в факт одним цветом.
+ *
+ * 3. Печать. Сигнальная карточка — документ, который распечатывают и
+ *    прикладывают к служебной записке. Правила @media print убирают
+ *    навигацию и кнопки, разворачивают скрытые блоки и переводят цвета
+ *    в читаемые на монохромном принтере.
+ */
+
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --border: #dde3ea;
+  --border-strong: #c3ccd6;
+  --text: #16202b;
+  --text-muted: #5b6b7c;
+  --text-faint: #8695a5;
+  --accent: #15509b;
+  --accent-soft: #e8f0fb;
+
+  --zone-green: #1d7a46;
+  --zone-green-soft: #e4f4ea;
+  --zone-yellow: #96650a;
+  --zone-yellow-soft: #fdf2dc;
+  --zone-red: #a52019;
+  --zone-red-soft: #fbe6e4;
+
+  --ai: #7a4ecb;
+  --ai-soft: #f1ecfb;
+  --evidence: #0f6f74;
+  --evidence-soft: #ddf2f3;
+
+  --radius: 8px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Roboto, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 8px;
+  line-height: 1.25;
+  font-weight: 650;
+}
+
+h1 {
+  font-size: 23px;
+}
+h2 {
+  font-size: 18px;
+}
+h3 {
+  font-size: 15px;
+}
+
+p {
+  margin: 0 0 10px;
+}
+
+/* --- Оболочка ------------------------------------------------------- */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.brand strong {
+  font-size: 16px;
+  letter-spacing: 0.04em;
+}
+
+.brand span {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.nav {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.nav a {
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+.nav a:hover {
+  background: var(--surface-muted);
+  text-decoration: none;
+}
+
+.nav a[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--zone-red-soft);
+  color: var(--zone-red);
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
+.lang {
+  display: flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.lang button {
+  border: 0;
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lang button[aria-pressed='true'] {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.main {
+  flex: 1;
+  padding: 20px;
+  max-width: 1260px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.lead {
+  color: var(--text-muted);
+  max-width: 76ch;
+  margin-bottom: 18px;
+}
+
+/* --- Блоки ---------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.card > h2:first-child,
+.card > h3:first-child {
+  margin-top: 0;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.grid-4 {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.row-between {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.faint {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* --- Зоны риска ----------------------------------------------------- */
+
+.zone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 100px;
+  font-size: 12.5px;
+  font-weight: 650;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.zone-GREEN {
+  background: var(--zone-green-soft);
+  color: var(--zone-green);
+  border-color: color-mix(in srgb, var(--zone-green) 30%, transparent);
+}
+
+.zone-YELLOW {
+  background: var(--zone-yellow-soft);
+  color: var(--zone-yellow);
+  border-color: color-mix(in srgb, var(--zone-yellow) 30%, transparent);
+}
+
+.zone-RED {
+  background: var(--zone-red-soft);
+  color: var(--zone-red);
+  border-color: color-mix(in srgb, var(--zone-red) 30%, transparent);
+}
+
+.score-badge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 68px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  line-height: 1.05;
+}
+
+.score-badge strong {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.score-badge span {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+}
+
+.score-badge.zone-GREEN {
+  border-radius: var(--radius);
+}
+
+/* --- Теги и признаки ------------------------------------------------ */
+
+.tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tag-code {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tag-ai {
+  background: var(--ai-soft);
+  border-color: color-mix(in srgb, var(--ai) 35%, transparent);
+  color: var(--ai);
+}
+
+.tag-evidence {
+  background: var(--evidence-soft);
+  border-color: color-mix(in srgb, var(--evidence) 35%, transparent);
+  color: var(--evidence);
+}
+
+.tag-warn {
+  background: var(--zone-yellow-soft);
+  border-color: color-mix(in srgb, var(--zone-yellow) 35%, transparent);
+  color: var(--zone-yellow);
+}
+
+.tag-danger {
+  background: var(--zone-red-soft);
+  border-color: color-mix(in srgb, var(--zone-red) 35%, transparent);
+  color: var(--zone-red);
+}
+
+.tag-ok {
+  background: var(--zone-green-soft);
+  border-color: color-mix(in srgb, var(--zone-green) 35%, transparent);
+  color: var(--zone-green);
+}
+
+/* --- Таблицы -------------------------------------------------------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+tbody tr:hover {
+  background: var(--surface-muted);
+}
+
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Таблица «поле — значение». Ширина первого столбца задана, иначе длинное
+ * значение в одной строке сдвигает подписи во всех остальных, и читать
+ * сведения об объекте приходится по ломаной линии.
+ */
+.kv th {
+  width: 38%;
+  white-space: normal;
+}
+
+/* --- Формы ---------------------------------------------------------- */
+
+label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+input[type='text'],
+input[type='search'],
+input[type='date'],
+select,
+textarea {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+textarea {
+  min-height: 110px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  color: var(--text);
+  margin-bottom: 0;
+}
+
+.checkbox input {
+  width: auto;
+  margin: 0;
+}
+
+button,
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+.btn:hover {
+  background: var(--surface-muted);
+  text-decoration: none;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #113f79;
+  border-color: #113f79;
+}
+
+.btn-danger {
+  color: var(--zone-red);
+  border-color: color-mix(in srgb, var(--zone-red) 40%, transparent);
+}
+
+.btn-ok {
+  color: var(--zone-green);
+  border-color: color-mix(in srgb, var(--zone-green) 45%, transparent);
+}
+
+.btn-small {
+  padding: 4px 9px;
+  font-size: 12.5px;
+}
+
+/* --- Сообщения ------------------------------------------------------ */
+
+.notice {
+  padding: 10px 13px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  font-size: 13.5px;
+  margin-bottom: 12px;
+}
+
+.notice-info {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.notice-warn {
+  background: var(--zone-yellow-soft);
+  border-color: color-mix(in srgb, var(--zone-yellow) 30%, transparent);
+  color: #6f4b05;
+}
+
+.notice-error {
+  background: var(--zone-red-soft);
+  border-color: color-mix(in srgb, var(--zone-red) 30%, transparent);
+  color: #7d170f;
+}
+
+.notice ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+/* --- Текст объявления и подсветка ----------------------------------- */
+
+/*
+ * Важное место. Два вида подсветки обязаны отличаться на глаз.
+ */
+
+.adtext {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14.5px;
+  line-height: 1.65;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+/* Цитата ИИ: пунктир без заливки — это вопрос, а не утверждение. */
+mark.hl-ai {
+  background: transparent;
+  color: inherit;
+  border-bottom: 2px dashed var(--ai);
+  border-radius: 0;
+  padding: 0 1px;
+  cursor: help;
+}
+
+/* Доказательство аналитика: плотная заливка — за ним стоит человек. */
+mark.hl-evidence {
+  background: var(--evidence-soft);
+  color: inherit;
+  box-shadow: inset 0 -2px 0 var(--evidence);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* Пересечение: приложено человеком и предложено алгоритмом. */
+mark.hl-both {
+  background: var(--evidence-soft);
+  border-bottom: 2px dashed var(--ai);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/*
+ * Сработавшее слово-ловушка: тонкая рамка без заливки.
+ *
+ * Самая слабая из подсветок намеренно. Это находка поиска по списку
+ * слов, а не вывод: «бронь» в тексте значит только то, что там есть
+ * слово «бронь». Заливка поставила бы её в один ряд с доказательством.
+ */
+mark.hl-term {
+  background: transparent;
+  color: inherit;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 45%, transparent);
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: help;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-swatch {
+  width: 22px;
+  height: 12px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-swatch.ai {
+  border-bottom: 2px dashed var(--ai);
+}
+
+.legend-swatch.evidence {
+  background: var(--evidence-soft);
+  box-shadow: inset 0 -2px 0 var(--evidence);
+}
+
+.legend-swatch.term {
+  border: 1px solid color-mix(in srgb, var(--text-muted) 45%, transparent);
+  border-radius: 3px;
+}
+
+/* --- Карта (схема региона) ------------------------------------------ */
+
+.map {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(180deg, #eef3f7, #e4ebf1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.map-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(to right, rgba(0, 0, 0, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.045) 1px, transparent 1px);
+  background-size: 10% 10%;
+}
+
+.map-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.map-pin.zone-GREEN {
+  background: var(--zone-green);
+}
+.map-pin.zone-YELLOW {
+  background: var(--zone-yellow);
+}
+.map-pin.zone-RED {
+  background: var(--zone-red);
+  width: 19px;
+  height: 19px;
+}
+
+.map-pin:hover {
+  z-index: 5;
+  outline: 3px solid rgba(255, 255, 255, 0.8);
+}
+
+/* --- График динамики ------------------------------------------------ */
+
+.sparkline {
+  width: 100%;
+  height: 140px;
+  display: block;
+}
+
+.sparkline .axis {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.sparkline .zone-band {
+  opacity: 0.5;
+}
+
+.sparkline .line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+/* --- Полоса вклада факторов ----------------------------------------- */
+
+.factor-row {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.factor-row:last-child {
+  border-bottom: 0;
+}
+
+.factor-head {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.factor-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+  margin: 7px 0;
+}
+
+.factor-bar > div {
+  height: 100%;
+  background: var(--zone-red);
+}
+
+.factor-bar.inactive > div {
+  background: var(--border-strong);
+}
+
+/* --- Вложенная карточка (гипотеза, группа связей) -------------------- */
+
+/*
+ * Гипотез у объявления бывает шесть-восемь, и подряд идущие блоки без
+ * границы читаются как один текст. Вложенная карточка светлее основной:
+ * она внутри неё, а не рядом.
+ */
+.card-nested {
+  background: var(--surface-muted);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  box-shadow: none;
+}
+
+.card-nested:last-child {
+  margin-bottom: 0;
+}
+
+/* Цитата из объявления внутри карточки гипотезы. */
+.quote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--ai);
+  background: var(--surface);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/*
+ * Непрочитанное содержимое гипотезы. Намеренно некрасиво: такой блок —
+ * признак расхождения схемы с данными, и он должен бросаться в глаза,
+ * а не притворяться оформленным.
+ */
+.raw {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+}
+
+/* --- Печать --------------------------------------------------------- */
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  body {
+    background: #fff;
+    font-size: 11.5pt;
+  }
+
+  .topbar,
+  .nav,
+  .lang,
+  .no-print,
+  button {
+    display: none !important;
+  }
+
+  .main {
+    padding: 0;
+    max-width: none;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  .card {
+    border: 1px solid #999;
+    break-inside: avoid;
+    margin-bottom: 10pt;
+  }
+
+  /* На монохромном принтере цвет зоны пропадёт — остаётся рамка и текст. */
+  .zone,
+  .score-badge {
+    border: 1pt solid #333 !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+
+  /* Адрес ссылки в документе важен: по нему проверяют источник. */
+  a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 9pt;
+    color: #444;
+  }
+}
